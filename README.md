@@ -6,7 +6,7 @@ Mirror (or header to) uploaded files from a remote production site on your local
 
 Stage File Proxy runs when WordPress is serving a 404 response for a request to the uploads directory. If your server intercepts these requests instead of passing them to WordPress, the plugin will not work.
 
-There is no UI for the plugin. Options must be set manually, typically using WP-CLI. For example, it looks like this to set the mode to `header`:
+There are four options for this plugin, though only two are currently available via the UI. WP-CLI can be used to tweak the setting though, such as adjusting the mode to `header`.
 
 ```shell
 wp option update sfp_mode header
