@@ -19,6 +19,16 @@ Mirror (or header to) uploaded files from a remote production site on your local
 composer require cleverington/stage-file-proxy:"*" --dev
 ```
 
+3. Ensure that you're "not in Production":
+
+The Stage File Proxt module is insecure and will not allow itself to be used in "Production" environments.
+
+To allow usage, configure your local `wp-config.php` or, if available, `wp-config-local.php` with:
+
+```php
+define( 'WP_ENVIRONMENT_TYPE', 'development' );
+```
+
 ### No Composer Installation
 
 1. Clone this repository into your `plugins/` directory.
