@@ -18,7 +18,7 @@
  */
 add_action( 'activated_plugin', 'sfp_first' );
 
-if ( stripos( $_SERVER['REQUEST_URI'], '/wp-content/uploads/' ) !== false ) { // phpcs:ignore
+if ( sfp_should_run() && stripos( $_SERVER['REQUEST_URI'], '/wp-content/uploads/' ) !== false ) { // phpcs:ignore
 	sfp_expect();
 }
 
@@ -76,6 +76,12 @@ function sfp_get_url( $path = null ) {
 function sfp_dispatch(): void {
 	$mode          = sfp_get_mode();
 	$relative_path = sfp_get_relative_path();
+	$base_url      = sfp_get_base_url();
+
+	if ( $base_url === '' ) {
+		sfp_error();
+	}
+
 	if ( 'header' === $mode ) {
 		header( 'Location: ' . sfp_get_base_url() . $relative_path );
 		exit;
@@ -127,16 +133,7 @@ function sfp_dispatch(): void {
 	 * @param array $remote_http_request_args The request arguments.
 	 */
 	$remote_http_request_args = apply_filters( 'sfp_http_remote_args', array( 'timeout' => 30 ) );
-
-	/**
-	 * Filter: sfp_http_request_args
-	 *
-	 * Alter the args of the GET request.
-	 *
-	 * @param array $remote_http_request_args The request arguments.
-	 */
-	$remote_http_request_args = apply_filters( 'sfp_http_remote_args', array( 'timeout' => 30 ) );
-	$remote_request = wp_remote_get( $remote_url, $remote_http_request_args );
+	$remote_request           = wp_remote_get( $remote_url, $remote_http_request_args );
 
 	if ( is_wp_error( $remote_request ) || $remote_request['response']['code'] > 400 ) {
 		// If local mode, failover to local files
@@ -348,9 +345,19 @@ function sfp_get_random_local_file_path(): string {
 function sfp_get_mode() {
 	static $mode;
 	if ( ! $mode ) {
-		$mode = get_option( 'sfp_mode' );
+		$env_mode = sfp_get_env_string( 'STAGE_FILE_PROXY_MODE' );
+		if ( in_array( $env_mode, array( 'download', 'header', 'local', 'photon' ), true ) ) {
+			$mode = $env_mode;
+		} else {
+			$mode = get_option( 'sfp_mode' );
+		}
+
 		if ( ! $mode ) {
-			$mode = 'header';
+			$mode = null !== sfp_get_remote_auth() ? 'download' : 'header';
+		}
+
+		if ( null !== sfp_get_remote_auth() && 'header' === $mode ) {
+			$mode = 'download';
 		}
 	}
 	return $mode;
@@ -362,15 +369,31 @@ function sfp_get_mode() {
  * @return string
  */
 function sfp_get_base_url() {
-	static $url;
-	$mode = sfp_get_mode();
-	if ( ! $url ) {
-		$url = get_option( 'sfp_url' );
-		if ( ! $url && 'local' !== $mode ) {
-			sfp_error();
-		}
+	static $url = null;
+
+	if ( null !== $url ) {
+		return $url;
 	}
-	return trailingslashit( $url );
+
+	if ( ! sfp_environment_allows() || ! sfp_has_remote_config() ) {
+		$url = '';
+		return $url;
+	}
+
+	$raw = sfp_get_raw_remote_base_url();
+	if ( $raw === '' ) {
+		$url = '';
+		return $url;
+	}
+
+	$parsed = sfp_parse_remote_auth( $raw );
+	$url    = trailingslashit( $parsed['url'] );
+
+	if ( $url === '' && 'local' !== sfp_get_mode() ) {
+		sfp_error();
+	}
+
+	return $url;
 }
 
 /**
