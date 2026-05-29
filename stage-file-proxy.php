@@ -3,7 +3,7 @@
 	Plugin Name: Stage File Proxy
 	Plugin URI: https://taoti.com
 	Description: Get only the files you need from your production environment. Don't ever run this in production!
-	Version: 0.1.2
+	Version: 0.1.4
 	Author: Charles Leverington, Taoti Creative
 	Author URI: https://taoti.com
 */
@@ -28,7 +28,7 @@ if ( ! defined( 'WPINC' ) ) {
  * @return string Minimum version required.
  */
 function minimum_php_requirement() {
-	return '8.0.0';
+	return '8.1.0';
 }
 
 /**
@@ -68,14 +68,14 @@ if ( ! site_meets_php_requirements() ) {
 }
 
 /**
- * Whether PHP installation meets the minimum requirements
+ * Whether the site environment allows Stage File Proxy.
  *
- * @since 0.0.1
+ * @since 0.1.4
  *
- * @return bool True if meets minimum requirements, false otherwise.
+ * @return bool
  */
 function site_in_development() {
-	return 'production' !== wp_get_environment_type();
+	return \sfp_environment_allows();
 }
 
 /**
@@ -85,7 +85,7 @@ function site_in_development() {
  * from published version of the plugin this version forked from.
  */
 if ( ! defined( 'STAGE_FILE_PROXY_VERSION' ) ) {
-	define( 'STAGE_FILE_PROXY_VERSION', '0.1.2' );
+	define( 'STAGE_FILE_PROXY_VERSION', '0.1.4' );
 }
 
 // Plugin Folder Path.
@@ -103,14 +103,26 @@ if ( ! defined( 'STAGE_FILE_PROXY_FILE' ) ) {
 	define( 'STAGE_FILE_PROXY_FILE', __FILE__ );
 }
 
+require_once STAGE_FILE_PROXY_DIR . 'includes/config.php';
 require_once STAGE_FILE_PROXY_DIR . 'includes/admin.php';
 
-// If this is a production environment, do not let the plugin load.
-if ( site_in_development() ) {
+register_activation_hook(
+	STAGE_FILE_PROXY_FILE,
+	function () {
+		if ( ! \sfp_environment_allows() ) {
+			deactivate_plugins( plugin_basename( STAGE_FILE_PROXY_FILE ) );
+			wp_die(
+				esc_html__( 'Stage File Proxy cannot be activated unless WP_ENVIRONMENT_TYPE is explicitly set to local, development, or staging.', 'stage-file-proxy' ),
+				esc_html__( 'Plugin activation blocked', 'stage-file-proxy' ),
+				array( 'back_link' => true )
+			);
+		}
+	}
+);
 
-	// Process images from Remote Server.
+if ( \sfp_should_run() ) {
 	require_once STAGE_FILE_PROXY_DIR . 'includes/image-processing.php';
-} else {
+} elseif ( ! \sfp_environment_allows() ) {
 	add_action(
 		'admin_notices',
 		function () {
@@ -119,9 +131,7 @@ if ( site_in_development() ) {
 				<p>
 					<?php
 					echo wp_kses_post(
-						sprintf(
-							__( 'URGENT: Stage File Proxy Plugin should not be active on Production Environments.', 'stage-file-proxy' ),
-						)
+						__( 'URGENT: Stage File Proxy Plugin should not be active on Production Environments.', 'stage-file-proxy' )
 					);
 					?>
 				</p>
