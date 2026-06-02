@@ -3,7 +3,7 @@
 	Plugin Name: Stage File Proxy
 	Plugin URI: https://taoti.com
 	Description: Get only the files you need from your production environment. Don't ever run this in production!
-	Version: 0.1.4
+	Version: 0.1.5
 	Author: Charles Leverington, Taoti Creative
 	Author URI: https://taoti.com
 */
@@ -85,7 +85,7 @@ function site_in_development() {
  * from published version of the plugin this version forked from.
  */
 if ( ! defined( 'STAGE_FILE_PROXY_VERSION' ) ) {
-	define( 'STAGE_FILE_PROXY_VERSION', '0.1.4' );
+	define( 'STAGE_FILE_PROXY_VERSION', '0.1.5' );
 }
 
 // Plugin Folder Path.
@@ -117,6 +117,8 @@ register_activation_hook(
 				array( 'back_link' => true )
 			);
 		}
+
+		\sfp_install_all_routing();
 	}
 );
 

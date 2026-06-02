@@ -16,6 +16,10 @@
  * The dynamic resizing portion was adapted from dynamic-image-resizer.
  * See: https://wordpress.org/plugins/dynamic-image-resizer/
  */
+if ( ! defined( 'SFP_IMAGE_PROCESSING_LOADED' ) ) {
+	define( 'SFP_IMAGE_PROCESSING_LOADED', true );
+}
+
 add_action( 'activated_plugin', 'sfp_first' );
 
 if ( sfp_should_run() ) {
@@ -24,6 +28,8 @@ if ( sfp_should_run() ) {
 	} else {
 		add_action( 'init', 'sfp_maybe_expect', 0 );
 	}
+
+	add_action( 'template_redirect', 'sfp_late_dispatch', 0 );
 }
 
 add_filter( 'wp_generate_attachment_metadata', 'sfp_generate_metadata' );
@@ -46,12 +52,60 @@ function sfp_first(): void {
 }
 
 /**
+ * Whether sfp_dispatch has already run for this request.
+ *
+ * @return bool
+ */
+function sfp_is_dispatched(): bool {
+	return ! empty( $GLOBALS['sfp_has_dispatched'] );
+}
+
+/**
+ * Mark sfp_dispatch as having run for this request.
+ */
+function sfp_mark_dispatched(): void {
+	$GLOBALS['sfp_has_dispatched'] = true;
+}
+
+/**
+ * Prepare output buffering before serving a proxied file.
+ */
+function sfp_prepare_output(): void {
+	static $prepared = false;
+
+	if ( $prepared ) {
+		return;
+	}
+
+	$prepared = true;
+	ob_start();
+	ini_set( 'display_errors', 'off' ); // phpcs:ignore
+}
+
+/**
  * Arm the proxy on init when uploads path was not detectable at plugin load.
  */
 function sfp_maybe_expect(): void {
 	if ( sfp_is_uploads_request() ) {
 		sfp_expect();
 	}
+}
+
+/**
+ * Late fallback when path detection succeeds after plugin load.
+ */
+function sfp_late_dispatch(): void {
+	if ( ! sfp_should_run() || sfp_is_dispatched() ) {
+		return;
+	}
+
+	if ( ! sfp_is_uploads_request() ) {
+		return;
+	}
+
+	sfp_prepare_output();
+	sfp_mark_dispatched();
+	sfp_dispatch();
 }
 
 /**
@@ -65,9 +119,20 @@ function sfp_expect(): void {
 	}
 
 	$armed = true;
-	ob_start();
-	ini_set( 'display_errors', 'off' ); // phpcs:ignore
-	add_action( 'init', 'sfp_dispatch' );
+	sfp_prepare_output();
+	add_action( 'init', 'sfp_dispatch_once' );
+}
+
+/**
+ * Run dispatch once per request (init hook); allows recursive sfp_dispatch for resize.
+ */
+function sfp_dispatch_once(): void {
+	if ( sfp_is_dispatched() ) {
+		return;
+	}
+
+	sfp_mark_dispatched();
+	sfp_dispatch();
 }
 
 /**
