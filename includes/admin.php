@@ -72,7 +72,6 @@ if ( ! class_exists( 'SFP_Admin' ) ) {
 			add_action( 'admin_post_sfp_settings', array( $this, 'save_settings' ) );
 			add_action( 'admin_post_sfp_test_fetch', array( $this, 'test_fetch' ) );
 			add_action( 'admin_post_sfp_install_htaccess', array( $this, 'install_htaccess' ) );
-			add_action( 'admin_post_sfp_routing_probe', array( $this, 'routing_probe' ) );
 		}
 
 		/**
@@ -118,15 +117,6 @@ if ( ! class_exists( 'SFP_Admin' ) ) {
 				: (string) get_option( 'sfp_url', '' );
 			$diagnostics    = sfp_get_runtime_diagnostics();
 			$test_fetch     = null;
-			$routing_probe  = null;
-			if ( isset( $_GET['sfp_routing_handler'] ) ) {
-				$routing_probe = array(
-					'handler' => sanitize_key( wp_unslash( (string) $_GET['sfp_routing_handler'] ) ),
-					'code'    => isset( $_GET['sfp_routing_code'] ) ? (int) $_GET['sfp_routing_code'] : 0,
-					'detail'  => isset( $_GET['sfp_routing_detail'] ) ? sanitize_text_field( wp_unslash( (string) $_GET['sfp_routing_detail'] ) ) : '',
-					'url'     => isset( $_GET['sfp_routing_url'] ) ? esc_url_raw( wp_unslash( (string) $_GET['sfp_routing_url'] ) ) : '',
-				);
-			}
 			if ( isset( $_GET['sfp_test_code'] ) ) {
 				$test_fetch = array(
 					'code'    => sanitize_text_field( wp_unslash( (string) $_GET['sfp_test_code'] ) ),
@@ -203,7 +193,6 @@ if ( ! class_exists( 'SFP_Admin' ) ) {
 						<li><?php esc_html_e( 'Install Apache routing rules below (uploads + root .htaccess).', 'stage-file-proxy' ); ?></li>
 						<li><?php esc_html_e( 'Plesk → Domains → your site → Apache & nginx Settings → add the nginx snippet under “Additional nginx directives”.', 'stage-file-proxy' ); ?></li>
 						<li><?php esc_html_e( 'Or uncheck “Serve static files directly by nginx” so Apache/.htaccess handle missing files.', 'stage-file-proxy' ); ?></li>
-						<li><?php esc_html_e( 'Run “Test uploads routing” to confirm WordPress or SFP handles the request.', 'stage-file-proxy' ); ?></li>
 					</ol>
 				</div>
 
@@ -245,7 +234,7 @@ if ( ! class_exists( 'SFP_Admin' ) ) {
 					</tbody>
 				</table>
 
-				<form method="post" action="<?php echo esc_attr( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:1em;display:inline-block;margin-right:8px">
+				<form method="post" action="<?php echo esc_attr( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:1em">
 					<input type="hidden" name="action" value="sfp_install_htaccess" />
 					<?php wp_nonce_field( 'sfp_install_htaccess', 'sfp_install_htaccess_nonce' ); ?>
 					<?php
@@ -257,38 +246,6 @@ if ( ! class_exists( 'SFP_Admin' ) ) {
 					);
 					?>
 				</form>
-
-				<form method="post" action="<?php echo esc_attr( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:1em;display:inline-block">
-					<input type="hidden" name="action" value="sfp_routing_probe" />
-					<?php wp_nonce_field( 'sfp_routing_probe', 'sfp_routing_probe_nonce' ); ?>
-					<?php
-					submit_button(
-						__( 'Test uploads routing', 'stage-file-proxy' ),
-						'secondary',
-						'sfp_routing_probe',
-						false
-					);
-					?>
-				</form>
-
-				<?php if ( null !== $routing_probe ) : ?>
-					<div class="<?php echo in_array( $routing_probe['handler'], array( 'sfp', 'wordpress' ), true ) ? 'updated' : 'error'; ?>" style="margin-top:1em;max-width:800px">
-						<p>
-							<?php
-							printf(
-								/* translators: 1: handler key, 2: HTTP code, 3: detail */
-								esc_html__( 'Routing probe: %1$s — HTTP %2$d. %3$s', 'stage-file-proxy' ),
-								esc_html( $routing_probe['handler'] ),
-								(int) $routing_probe['code'],
-								esc_html( $routing_probe['detail'] )
-							);
-							?>
-						</p>
-						<?php if ( $routing_probe['url'] ) : ?>
-							<p><code><?php echo esc_html( $routing_probe['url'] ); ?></code></p>
-						<?php endif; ?>
-					</div>
-				<?php endif; ?>
 
 				<p class="description" style="max-width:800px;margin-top:1em">
 					<strong><?php esc_html_e( 'Plesk — Additional nginx directives', 'stage-file-proxy' ); ?></strong>
@@ -496,37 +453,6 @@ if ( ! class_exists( 'SFP_Admin' ) ) {
 					array(
 						'page'           => 'stage-file-proxy',
 						'sfp_htaccess'   => '1',
-					),
-					admin_url( 'options-general.php' )
-				)
-			);
-			exit;
-		}
-
-		/**
-		 * Probe how the host routes missing uploads URLs.
-		 *
-		 * @since 0.1.5
-		 */
-		public function routing_probe() {
-			if ( ! isset( $_POST['sfp_routing_probe_nonce'] ) || ! wp_verify_nonce( $_POST['sfp_routing_probe_nonce'], 'sfp_routing_probe' ) ) {
-				wp_die( esc_html__( 'You are not authorized to perform that action', 'stage-file-proxy' ) );
-			}
-
-			if ( ! current_user_can( 'manage_options' ) || ! sfp_environment_allows() ) {
-				wp_die( esc_html__( 'Stage File Proxy cannot run tests in this environment.', 'stage-file-proxy' ) );
-			}
-
-			$result = sfp_run_routing_probe();
-
-			wp_redirect(
-				add_query_arg(
-					array(
-						'page'               => 'stage-file-proxy',
-						'sfp_routing_handler' => $result['handler'],
-						'sfp_routing_code'    => (string) $result['code'],
-						'sfp_routing_detail'  => $result['detail'],
-						'sfp_routing_url'     => $result['url'],
 					),
 					admin_url( 'options-general.php' )
 				)
