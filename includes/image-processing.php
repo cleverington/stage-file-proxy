@@ -18,8 +18,12 @@
  */
 add_action( 'activated_plugin', 'sfp_first' );
 
-if ( sfp_should_run() && stripos( $_SERVER['REQUEST_URI'], '/wp-content/uploads/' ) !== false ) { // phpcs:ignore
-	sfp_expect();
+if ( sfp_should_run() ) {
+	if ( sfp_is_uploads_request() ) {
+		sfp_expect();
+	} else {
+		add_action( 'init', 'sfp_maybe_expect', 0 );
+	}
 }
 
 add_filter( 'wp_generate_attachment_metadata', 'sfp_generate_metadata' );
@@ -42,9 +46,25 @@ function sfp_first(): void {
 }
 
 /**
+ * Arm the proxy on init when uploads path was not detectable at plugin load.
+ */
+function sfp_maybe_expect(): void {
+	if ( sfp_is_uploads_request() ) {
+		sfp_expect();
+	}
+}
+
+/**
  * This function, triggered above, sets the chain in motion.
  */
 function sfp_expect(): void {
+	static $armed = false;
+
+	if ( $armed ) {
+		return;
+	}
+
+	$armed = true;
 	ob_start();
 	ini_set( 'display_errors', 'off' ); // phpcs:ignore
 	add_action( 'init', 'sfp_dispatch' );
@@ -139,7 +159,7 @@ function sfp_dispatch(): void {
 		// If local mode, failover to local files
 		if ( 'local' === $mode ) {
 			// Cache replacement image by hashed request URI
-			$transient_key = 'sfp_image_' . md5( $_SERVER['REQUEST_URI'] ); // phpcs:ignore
+			$transient_key = 'sfp_image_' . md5( sfp_get_request_path() );
 			if ( false === ( $basefile = get_transient( $transient_key ) ) ) {
 				$basefile = sfp_get_random_local_file_path( $doing_resize );
 				set_transient( $transient_key, $basefile );
@@ -294,7 +314,7 @@ function sfp_generate_metadata( $meta ) {
 function sfp_get_relative_path() {
 	static $path;
 	if ( ! $path ) {
-		$path = preg_replace( '/.*\/wp\-content\/uploads(\/sites\/\d+)?\//i', '', $_SERVER['REQUEST_URI'] ); // phpcs:ignore
+		$path = preg_replace( '/.*\/wp\-content\/uploads(\/sites\/\d+)?\//i', '', sfp_get_request_path() );
 	}
 	/**
 	 * Filters the relative path of an image in SFP.

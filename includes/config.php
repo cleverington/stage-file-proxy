@@ -87,6 +87,83 @@ function sfp_get_env_string( string $name ): string {
 }
 
 /**
+ * Candidate request paths from server variables (rewrite stacks often use REDIRECT_URL).
+ *
+ * @return string[]
+ */
+function sfp_get_request_path_candidates(): array {
+	$keys  = array(
+		'REDIRECT_URL',
+		'HTTP_X_ORIGINAL_URL',
+		'HTTP_X_REWRITE_URL',
+		'UNENCODED_URL',
+		'REQUEST_URI',
+		'DOCUMENT_URI',
+		'PATH_INFO',
+		'ORIG_PATH_INFO',
+	);
+	$paths = array();
+
+	foreach ( $keys as $key ) {
+		if ( empty( $_SERVER[ $key ] ) || ! is_string( $_SERVER[ $key ] ) ) {
+			continue;
+		}
+
+		$path = wp_unslash( $_SERVER[ $key ] );
+		if ( $path !== '' ) {
+			$paths[] = $path;
+		}
+	}
+
+	return $paths;
+}
+
+/**
+ * Best-effort request path for the current HTTP request.
+ *
+ * Prefers any candidate containing /wp-content/uploads/. Falls back to the first
+ * non-root path because some hosts rewrite uploads requests with REQUEST_URI=/.
+ *
+ * @return string
+ */
+function sfp_get_request_path(): string {
+	$paths = sfp_get_request_path_candidates();
+
+	foreach ( $paths as $path ) {
+		if ( stripos( $path, '/wp-content/uploads/' ) !== false ) {
+			/**
+			 * Filters the resolved request path used by Stage File Proxy.
+			 *
+			 * @param string $path Request path.
+			 */
+			return apply_filters( 'sfp_request_path', $path );
+		}
+	}
+
+	foreach ( $paths as $path ) {
+		if ( $path !== '/' ) {
+			return apply_filters( 'sfp_request_path', $path );
+		}
+	}
+
+	$fallback = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( (string) $_SERVER['REQUEST_URI'] ) : '';
+
+	return apply_filters( 'sfp_request_path', $fallback );
+}
+
+/**
+ * Whether the current request targets the uploads directory.
+ *
+ * @param string|null $path Optional path; defaults to sfp_get_request_path().
+ * @return bool
+ */
+function sfp_is_uploads_request( ?string $path = null ): bool {
+	$path = null !== $path ? $path : sfp_get_request_path();
+
+	return stripos( $path, '/wp-content/uploads/' ) !== false;
+}
+
+/**
  * Parse basic-auth credentials from a URL and return a userinfo-free URL.
  *
  * @param string $url Remote URL, optionally with embedded user:pass.
