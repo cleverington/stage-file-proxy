@@ -43,10 +43,15 @@ if ( ! class_exists( 'SFP_Admin' ) ) {
 		/**
 		 * Unserializing instances of this class is forbidden.
 		 *
+		 * PHP 8.5 soft-deprecates __wakeup(). __unserialize() is the supported hook on PHP 7.4+.
+		 *
 		 * @since 0.0.1
+		 *
+		 * @param array<string, mixed> $data Serialized payload. Ignored.
 		 */
-		public function __wakeup() {
-			wp_die( "Please don't __wakeup SFP_Admin" );
+		public function __unserialize( array $data ): void {
+			unset( $data );
+			wp_die( "Please don't unserialize SFP_Admin" );
 		}
 
 		/**
@@ -351,7 +356,7 @@ if ( ! class_exists( 'SFP_Admin' ) ) {
 		 * @since 0.0.1
 		 */
 		public function save_settings() {
-			if ( ! isset( $_POST['sfp_settings_nonce'] ) || ! wp_verify_nonce( $_POST['sfp_settings_nonce'], 'sfp_settings' ) ) {
+			if ( ! isset( $_POST['sfp_settings_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['sfp_settings_nonce'] ) ), 'sfp_settings' ) ) {
 				wp_die( esc_html__( 'You are not authorized to perform that action', 'stage-file-proxy' ) );
 			}
 
@@ -365,8 +370,8 @@ if ( ! class_exists( 'SFP_Admin' ) ) {
 			}
 
 			if ( isset( $_POST['sfp']['url'], $_POST['sfp']['mode'] ) ) {
-					update_option( 'sfp_url', sanitize_url( $_POST['sfp']['url'] ) );
-					update_option( 'sfp_mode', 'header' == $_POST['sfp']['mode'] ? 'header' : 'download' );
+				update_option( 'sfp_url', sanitize_url( wp_unslash( $_POST['sfp']['url'] ) ) );
+				update_option( 'sfp_mode', 'header' == sanitize_key( wp_unslash( $_POST['sfp']['mode'] ) ) ? 'header' : 'download' );
 				wp_redirect( admin_url( 'options-general.php?page=stage-file-proxy&success=1' ) );
 			} else {
 				wp_redirect( admin_url( 'options-general.php?page=stage-file-proxy&error=1' ) );
@@ -381,7 +386,7 @@ if ( ! class_exists( 'SFP_Admin' ) ) {
 		 * @since 0.1.5
 		 */
 		public function test_fetch() {
-			if ( ! isset( $_POST['sfp_test_fetch_nonce'] ) || ! wp_verify_nonce( $_POST['sfp_test_fetch_nonce'], 'sfp_test_fetch' ) ) {
+			if ( ! isset( $_POST['sfp_test_fetch_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['sfp_test_fetch_nonce'] ) ), 'sfp_test_fetch' ) ) {
 				wp_die( esc_html__( 'You are not authorized to perform that action', 'stage-file-proxy' ) );
 			}
 
@@ -425,7 +430,7 @@ if ( ! class_exists( 'SFP_Admin' ) ) {
 		 * @since 0.1.5
 		 */
 		public function install_htaccess() {
-			if ( ! isset( $_POST['sfp_install_htaccess_nonce'] ) || ! wp_verify_nonce( $_POST['sfp_install_htaccess_nonce'], 'sfp_install_htaccess' ) ) {
+			if ( ! isset( $_POST['sfp_install_htaccess_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['sfp_install_htaccess_nonce'] ) ), 'sfp_install_htaccess' ) ) {
 				wp_die( esc_html__( 'You are not authorized to perform that action', 'stage-file-proxy' ) );
 			}
 

@@ -43,7 +43,11 @@ add_filter( 'intermediate_image_sizes_advanced', 'sfp_image_sizes_advanced' );
 function sfp_first(): void {
 	$plugin_path    = 'stage-file-proxy/stage-file-proxy.php';
 	$active_plugins = get_option( 'active_plugins' );
-	$plugin_key     = array_search( $plugin_path, $active_plugins );
+	if ( ! is_array( $active_plugins ) ) {
+		return;
+	}
+
+	$plugin_key = array_search( $plugin_path, $active_plugins, true );
 	if ( $plugin_key ) { // if it's 0 it's the first plugin already, no need to continue
 		array_splice( $active_plugins, $plugin_key, 1 );
 		array_unshift( $active_plugins, $plugin_path );
@@ -226,8 +230,14 @@ function sfp_dispatch(): void {
 			// Cache replacement image by hashed request URI
 			$transient_key = 'sfp_image_' . md5( sfp_get_request_path() );
 			if ( false === ( $basefile = get_transient( $transient_key ) ) ) {
-				$basefile = sfp_get_random_local_file_path( $doing_resize );
-				set_transient( $transient_key, $basefile );
+				$basefile = sfp_get_random_local_file_path();
+				if ( '' !== $basefile ) {
+					set_transient( $transient_key, $basefile );
+				}
+			}
+
+			if ( ! is_string( $basefile ) || '' === $basefile ) {
+				sfp_error();
 			}
 
 			// Resize if necessary
@@ -407,15 +417,23 @@ function sfp_get_random_local_file_path(): string {
 
 	$replacement_image_path = get_template_directory() . '/' . $local_dir . '/';
 
-	// Cache image directory contents
+	// Cache image directory contents.
 	if ( false === ( $images = get_transient( $transient_key ) ) ) {
-		foreach ( glob( $replacement_image_path . '*' ) as $filename ) {
-			// Exclude resized images
-			if ( ! preg_match( '/.+[0-9]+x[0-9]+c?\.(jpe?g|png|gif)$/iU', $filename ) ) {
-				$images[] = basename( $filename );
+		$images = array();
+		$files  = glob( $replacement_image_path . '*' );
+		if ( is_array( $files ) ) {
+			foreach ( $files as $filename ) {
+				// Exclude resized images.
+				if ( ! preg_match( '/.+[0-9]+x[0-9]+c?\.(jpe?g|png|gif)$/iU', $filename ) ) {
+					$images[] = basename( $filename );
+				}
 			}
 		}
 		set_transient( $transient_key, $images );
+	}
+
+	if ( ! is_array( $images ) || array() === $images ) {
+		return '';
 	}
 
 	$rand = wp_rand( 0, count( $images ) - 1 );

@@ -4,6 +4,7 @@
 	Plugin URI: https://taoti.com
 	Description: Get only the files you need from your production environment. Don't ever run this in production!
 	Version: 0.1.5
+	Requires PHP: 8.2
 	Author: Charles Leverington, Taoti Creative
 	Author URI: https://taoti.com
 */
@@ -28,7 +29,7 @@ if ( ! defined( 'WPINC' ) ) {
  * @return string Minimum version required.
  */
 function minimum_php_requirement() {
-	return '8.1.0';
+	return '8.2.0';
 }
 
 /**

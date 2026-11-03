@@ -16,7 +16,7 @@ function sfp_get_explicit_environment_type(): ?string {
 	}
 
 	if ( isset( $_ENV['WP_ENVIRONMENT_TYPE'] ) && is_string( $_ENV['WP_ENVIRONMENT_TYPE'] ) && $_ENV['WP_ENVIRONMENT_TYPE'] !== '' ) {
-		return $_ENV['WP_ENVIRONMENT_TYPE'];
+		return sanitize_text_field( wp_unslash( $_ENV['WP_ENVIRONMENT_TYPE'] ) );
 	}
 
 	if ( function_exists( 'getenv' ) ) {
@@ -73,7 +73,7 @@ function sfp_should_run(): bool {
  */
 function sfp_get_env_string( string $name ): string {
 	if ( isset( $_ENV[ $name ] ) && is_string( $_ENV[ $name ] ) && $_ENV[ $name ] !== '' ) {
-		return $_ENV[ $name ];
+		return sanitize_text_field( wp_unslash( $_ENV[ $name ] ) );
 	}
 
 	if ( function_exists( 'getenv' ) ) {
@@ -96,8 +96,9 @@ function sfp_parse_the_request(): string {
 		return '';
 	}
 
-	if ( preg_match( '#\s(/wp-content/uploads/\S+?)\s+HTTP/#i', $_SERVER['THE_REQUEST'], $matches ) ) {
-		return wp_unslash( $matches[1] );
+	$request = str_replace( "\0", '', wp_unslash( $_SERVER['THE_REQUEST'] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Upload paths must keep percent-encoding.
+	if ( preg_match( '#\s(/wp-content/uploads/\S+?)\s+HTTP/#i', $request, $matches ) ) {
+		return $matches[1];
 	}
 
 	return '';
@@ -109,13 +110,14 @@ function sfp_parse_the_request(): string {
  * @return string
  */
 function sfp_scan_server_for_uploads_path(): string {
-	foreach ( $_SERVER as $value ) {
+	foreach ( $_SERVER as $value ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Upload paths must keep percent-encoding.
 		if ( ! is_string( $value ) || strlen( $value ) < 20 ) {
 			continue;
 		}
 
+		$value = str_replace( "\0", '', wp_unslash( $value ) );
 		if ( preg_match( '~(/wp-content/uploads/[^\s"\'?#]+)~i', $value, $matches ) ) {
-			return wp_unslash( $matches[1] );
+			return $matches[1];
 		}
 	}
 
@@ -160,7 +162,7 @@ function sfp_get_request_path_candidates(): array {
 			continue;
 		}
 
-		$path = wp_unslash( $_SERVER[ $key ] );
+		$path = str_replace( "\0", '', wp_unslash( $_SERVER[ $key ] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Upload paths must keep percent-encoding.
 		if ( $path !== '' ) {
 			$paths[] = $path;
 		}
@@ -202,7 +204,7 @@ function sfp_get_request_path(): string {
 		return apply_filters( 'sfp_request_path', $scanned );
 	}
 
-	$fallback = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( (string) $_SERVER['REQUEST_URI'] ) : '';
+	$fallback = isset( $_SERVER['REQUEST_URI'] ) ? str_replace( "\0", '', wp_unslash( (string) $_SERVER['REQUEST_URI'] ) ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Upload paths must keep percent-encoding.
 
 	return apply_filters( 'sfp_request_path', $fallback );
 }
@@ -216,7 +218,7 @@ function sfp_get_runtime_diagnostics(): array {
 	$candidates = array();
 	foreach ( sfp_get_request_path_server_keys() as $key ) {
 		if ( isset( $_SERVER[ $key ] ) && is_string( $_SERVER[ $key ] ) && $_SERVER[ $key ] !== '' ) {
-			$candidates[ $key ] = wp_unslash( $_SERVER[ $key ] );
+			$candidates[ $key ] = str_replace( "\0", '', wp_unslash( $_SERVER[ $key ] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Upload paths must keep percent-encoding.
 		}
 	}
 
@@ -639,7 +641,7 @@ function sfp_install_uploads_htaccess() {
 }
 
 /**
- * nginx snippet for Plesk (must beat static extension locations — use ^~).
+ * Nginx snippet for Plesk (must beat static extension locations — use ^~).
  *
  * @return string
  */
